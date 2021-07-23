@@ -1,0 +1,6 @@
+# For development
+dev.config.js
+someTesting.js
+
+# Stop node modules from being comitted
+node_modules/

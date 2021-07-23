@@ -1,0 +1,14 @@
+{
+  "name": "saves-downloader-plus",
+  "version": "0.0.1",
+  "description": "A better saves downloader for reddit in Node.js",
+  "main": "js/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Clikuki",
+  "license": "MIT",
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  }
+}
