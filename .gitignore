@@ -1,6 +1,11 @@
-# For development
+# For development purposes
 dev.config.js
 someTesting.js
+listingExample.json
+info.txt
 
 # Stop node modules from being comitted
 node_modules/
+
+# don't commit files inside downloads
+downloads/*
