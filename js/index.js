@@ -1,33 +1,42 @@
-const fetch = require('node-fetch');
-const path = require('path');
+const Snoowrap = require('snoowrap');
 const fs = require('fs');
 
-// load in client ID and secret
+const download = require('./download');
+const getThingType = require('./getThingType');
+
 const userInfo = (() =>
 { // load dev or user credentials
 	try {
 		return require('./dev.config.js');
-	} catch (err) {
+	} catch {
 		return require('./userInfo.config.js');
 	}
 })();
 
-const uri = 'https://jsonplaceholder.typicode.com/users';
-// 'https://www.reddit.com/user/Clikuki/saved/'
-
-fetch(uri, {
-	method: 'GET',
-	mode: 'cors',
-	headers: {
-		Accept: 'application/json',
-	},
+const r = new Snoowrap({
+	userAgent: 'NodeJS Saves Downloader+ 0.0.1 By u/Clikuki',
+	clientId: userInfo.CLIENT_ID,
+	clientSecret: userInfo.CLIENT_SECRET,
+	username: userInfo.USERNAME,
+	password: userInfo.PASSWORD,
 })
-	.then(res => res.json())
-	.then(json => json.map(user =>
-		{
-			return {
-				person: user.name,
-				geo: user.address.geo,
-			};
-		}))
-	.then(console.log);
+
+function getSaves(limit)
+{
+	if(limit === 'all')
+	{
+		return r.getMe().getSavedContent().fetchAll();
+	}
+
+	return r.getMe().getSavedContent({ limit });
+}
+
+// getSaves(1).then(listing => {
+// 	listing.forEach(element => {
+		
+// 	});
+// });
+
+// console.log(listing.length);
+// fs.writeFileSync('./downloads/image.json', JSON.stringify(listing));
+// download('https://jsonplaceholder.typicode.com/users/', './downloads/test.json');
