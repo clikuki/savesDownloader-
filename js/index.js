@@ -21,7 +21,7 @@ const r = new Snoowrap({
 	password: userInfo.PASSWORD,
 })
 
-function getSaves(limit)
+function fetchSaves(limit)
 {
 	if(limit === 'all')
 	{
@@ -31,11 +31,58 @@ function getSaves(limit)
 	return r.getMe().getSavedContent({ limit });
 }
 
-// getSaves(1).then(listing => {
-// 	listing.forEach(element => {
-		
-// 	});
-// });
+async function getUrls(limit)
+{
+	return await fetchSaves(limit)
+		.then(listing => {
+			return listing.map(thing =>
+			{
+				const type = getThingType(thing);
+				const data = {
+					type,
+				}
+
+				switch(type)
+				{
+					case 'comment':
+						data.postUrl = thing.link_permalink;
+						data.url = data.postUrl + thing.id;
+						break;
+
+					case 'text':
+						data.url = thing.url;
+						break;
+
+					case 'image':
+						data.url = thing.preview.images[0].source.url;
+						break;
+
+					case 'video':
+						data.vidUrl = thing.secure_media.reddit_video.fallback_url;
+						data.audioUrl = data.vidUrl.replace(/DASH_[0-9]*/, 'DASH_audio');
+						break;
+
+					case 'gallery':
+						data.urlArray = Object.values(thing.media_metadata).map(img => img.s.u);
+						break;
+
+					default:
+						break;
+				}
+
+				return data;
+			});
+		})
+}
+
+getUrls(10)
+	.then(listing =>
+	{// listing contains some properties that could get iterated, so you need to deep copy the listing
+		for(const [index, thing] of Object.entries([...listing]))
+		{
+			console.log(`${index}:`, thing);
+		}
+	});;
 
 // console.log(listing.length);
 // fs.writeFileSync('./downloads/image.json', JSON.stringify(listing));

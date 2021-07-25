@@ -25,11 +25,11 @@ const getLinkType = (link) => {
 			return 'gallery';
 
 		case (!{}.hasOwnProperty.call(link, 'preview')):
+		case (!link.preview.enabled && link.selftext_html !== null):
 			return 'text';
 
 		default:
 			return 'image';
-
 	}
 };
 

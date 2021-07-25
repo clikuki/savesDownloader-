@@ -19,7 +19,9 @@ test('Returns \'video\' for video-type saves', () =>
 	const thing = {
 		name: name.link,
 		secure_media: {},
-		preview: {},
+		preview: {
+			enabled: false,
+		},
 	}
 
 	expect(getThingType(thing)).toBe('video');
@@ -31,7 +33,6 @@ test('Returns \'gallery\' for gallery-type saves', () =>
 		name: name.link,
 		secure_media: null,
 		media_metadata: {},
-		preview: {},
 	}
 
 	expect(getThingType(thing)).toBe('gallery');
@@ -39,12 +40,22 @@ test('Returns \'gallery\' for gallery-type saves', () =>
 
 test('Returns \'text\' for text-type saves', () =>
 {
-	const thing = {
+	const noPreviewProp = {
 		name: name.link,
 		secure_media: null,
 	}
 
-	expect(getThingType(thing)).toBe('text');
+	const hasPreviewProp = {
+		name: name.link,
+		secure_media: null,
+		selftext_html: '<p>Some Text</p>',
+		preview: {
+			enabled: false,
+		},
+	}
+
+	expect(getThingType(noPreviewProp)).toBe('text');
+	expect(getThingType(hasPreviewProp)).toBe('text');
 });
 
 test('Returns \'image\' for image-type saves', () =>
@@ -52,7 +63,10 @@ test('Returns \'image\' for image-type saves', () =>
 	const thing = {
 		name: name.link,
 		secure_media: null,
-		preview: {},
+		selftext_html: null,
+		preview: {
+			enabled: true,
+		},
 	}
 
 	expect(getThingType(thing)).toBe('image');
