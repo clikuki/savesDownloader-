@@ -4,21 +4,52 @@ const isComment = (() =>
 
 	return (name) =>
 	{
-		const prefix = getPrefix(name);
-		if(prefix === 't1_') return true;
+		if(typeof name !== 'string') throw new Error('Invalid name: must be a string');
+
+		if(getPrefix(name) === 't1_') return true;
 		return false;
 	}
 })();
 
 const getLinkType = (link) => {
-	if(link.secure_media !== null) return 'video';
-	if({}.hasOwnProperty.call(link, 'media_metadata')) return 'gallery';
-	if(!{}.hasOwnProperty.call(link, 'preview')) return 'text';
-	return 'image';
+	switch(true)
+	{
+		// if link has no secure_media prop, then throw an exception
+		case (!{}.hasOwnProperty.call(link, 'secure_media')):
+			throw new Error('Invalid argument: link-type does not have secure_media prop');
+
+		case (link.secure_media !== null):
+			return 'video';
+		
+		case ({}.hasOwnProperty.call(link, 'media_metadata')):
+			return 'gallery';
+
+		case (!{}.hasOwnProperty.call(link, 'preview')):
+			return 'text';
+
+		default:
+			return 'image';
+
+	}
 };
 
+const isObject = (obj) =>
+{
+	return typeof obj === 'object' && obj !== null && !Array.isArray(obj);
+}
+
 module.exports = (thing) =>
+{
+	switch(true)
 	{
-		if(isComment(thing.name)) return 'comment';
-		return getLinkType(thing);
-	};
+		// throw exception if thing is not an object
+		case (!isObject(thing)):
+			throw new Error('Invalid argument: must be an object');
+
+		case (isComment(thing.name)):
+			return 'comment';
+
+		default:
+			return getLinkType(thing);
+	}
+};
