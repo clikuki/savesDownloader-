@@ -49,17 +49,14 @@ async function getUrls(limit)
 						data.url = data.postUrl + thing.id;
 						break;
 
+					case 'image':
 					case 'text':
 						data.url = thing.url;
 						break;
 
-					case 'image':
-						data.url = thing.preview.images[0].source.url;
-						break;
-
 					case 'video':
 						data.vidUrl = thing.secure_media.reddit_video.fallback_url;
-						data.audioUrl = data.vidUrl.replace(/DASH_[0-9]*/, 'DASH_audio');
+						data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
 						break;
 
 					case 'gallery':
@@ -75,14 +72,14 @@ async function getUrls(limit)
 		})
 }
 
-getUrls(10)
+getUrls(1)
 	.then(listing =>
 	{// listing contains some properties that could get iterated, so you need to deep copy the listing
 		for(const [index, thing] of Object.entries([...listing]))
 		{
 			console.log(`${index}:`, thing);
 		}
-	});;
+	});
 
 // console.log(listing.length);
 // fs.writeFileSync('./downloads/image.json', JSON.stringify(listing));
