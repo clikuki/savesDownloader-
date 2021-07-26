@@ -1,9 +1,16 @@
 const fetch = require('node-fetch');
+const path = require('path');
 const fs = require('fs');
 
-module.exports = async (url, path) => {
+const download = async (url, dest, autoFileName = true) => {
 	const res = await fetch(url);
-	const fileStream = fs.createWriteStream(path);
+
+	if(autoFileName)
+	{
+		dest += path.basename(url);
+	}
+
+	const fileStream = fs.createWriteStream(dest);
 
 	await new Promise((resolve, reject) => {
 		res.body.pipe(fileStream);
@@ -11,3 +18,5 @@ module.exports = async (url, path) => {
 		fileStream.on("finish", resolve);
 	});
 };
+
+module.exports = download;

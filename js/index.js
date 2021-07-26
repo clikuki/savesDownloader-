@@ -1,8 +1,9 @@
 const Snoowrap = require('snoowrap');
 const fs = require('fs');
 
-const download = require('./download');
 const getThingType = require('./getThingType');
+const prompt = require('./prompt');
+const download = require('./download');
 
 const userInfo = (() =>
 { // load dev or user credentials
@@ -31,55 +32,63 @@ function fetchSaves(limit)
 	return r.getMe().getSavedContent({ limit });
 }
 
-async function getUrls(limit)
+function getUrls(limit)
 {
-	return await fetchSaves(limit)
-		.then(listing => {
-			return listing.map(thing =>
+	return fetchSaves(limit).then(listing =>
+		{
+		return listing.map(thing =>
+		{
+			const type = getThingType(thing);
+			const data = {
+				type,
+			}
+
+			switch(type)
 			{
-				const type = getThingType(thing);
-				const data = {
-					type,
-				}
+				case 'comment':
+					data.postUrl = thing.link_permalink;
+					data.url = data.postUrl + thing.id;
+					break;
 
-				switch(type)
-				{
-					case 'comment':
-						data.postUrl = thing.link_permalink;
-						data.url = data.postUrl + thing.id;
-						break;
+				case 'image':
+				case 'text':
+					data.url = thing.url;
+					break;
 
-					case 'image':
-					case 'text':
-						data.url = thing.url;
-						break;
+				case 'video':
+					data.vidUrl = thing.secure_media.reddit_video.fallback_url;
+					data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
+					break;
 
-					case 'video':
-						data.vidUrl = thing.secure_media.reddit_video.fallback_url;
-						data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
-						break;
+				case 'gallery':
+					data.urlArray = Object.values(thing.media_metadata).map(img => img.s.u);
+					break;
 
-					case 'gallery':
-						data.urlArray = Object.values(thing.media_metadata).map(img => img.s.u);
-						break;
+				default:
+					break;
+			}
 
-					default:
-						break;
-				}
-
-				return data;
-			});
-		})
+			return data;
+		});
+	})
 }
 
-getUrls(1)
-	.then(listing =>
-	{// listing contains some properties that could get iterated, so you need to deep copy the listing
-		for(const [index, thing] of Object.entries([...listing]))
-		{
-			console.log(`${index}:`, thing);
-		}
-	});
+prompt([
+	{
+		question: 'How many saves do you want to fetch?',
+		key: 'fetchLimit', 
+	}
+], ({ fetchLimit }) =>
+{
+	getUrls(+fetchLimit || 10)
+		.then(listing =>
+		{// listing contains some properties that could get iterated, so you need to deep copy the listing
+			for(const [index, thing] of Object.entries([...listing]))
+			{
+				console.log(`${index}:`, thing);
+			}
+		})
+})
 
 // console.log(listing.length);
 // fs.writeFileSync('./downloads/image.json', JSON.stringify(listing));
