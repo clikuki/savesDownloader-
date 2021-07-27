@@ -155,11 +155,11 @@ function chunkify(array, chunkLength)
 }
 
 // callback that is called when fetch limit prompt has been answered
-function startCallback({ fetchLimit })
+function startCallback({ fetchLimit, chunkLength })
 {
 	getUrls(+fetchLimit || 10)
-		.then(listing => chunkify([...listing], 2))
-		.then(async (chunkyListing) =>
+		.then(listing => chunkify([...listing], chunkLength || 2))
+		.then(async chunkyListing =>
 		{	
 			for(const chunk of chunkyListing)
 			{
@@ -174,5 +174,9 @@ prompt([
 	{
 		question: 'How many saves do you want to fetch?',
 		key: 'fetchLimit', 
-	}
+	},
+	{
+		question: 'How many parrallel downloads do you want?',
+		key: 'chunkLength', 
+	},
 ], startCallback)
