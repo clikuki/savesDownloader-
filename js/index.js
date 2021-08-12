@@ -4,11 +4,11 @@ const fs = require('fs');
 const getThingType = require('./getThingType');
 const prompt = require('./prompt');
 const download = require('./download');
-const { resolve } = require('path');
 
 const userInfo = (() =>
 { // load dev or user credentials
-	try {
+	try
+	{
 		return require('./dev.config.js');
 	} catch {
 		return require('./userInfo.config.js');
@@ -26,60 +26,55 @@ const r = new Snoowrap({
 // fetch saves
 function fetchSaves(limit)
 {
-	if(limit === 'all')
-	{
-		return r.getMe().getSavedContent().fetchAll();
-	}
-
+	if (limit === 'all') return r.getMe().getSavedContent().fetchAll();
 	return r.getMe().getSavedContent({ limit });
 }
 
 // takes the needed data from the listing and return it
-function getUrls(limit)
+function formatListing(listing)
 {
-	return fetchSaves(limit).then(listing =>
+	return listing.map(thing =>
+	{
+		const type = getThingType(thing);
+		const data = {
+			downloaded: true,
+			id: thing.id,
+			type,
+		}
+
+		switch (type)
 		{
-		return listing.map(thing =>
-		{
-			const type = getThingType(thing);
-			const data = {
-				type,
-			}
+			case 'comment':
+				data.postUrl = thing.link_permalink;
+				data.url = data.postUrl + thing.id;
+				break;
 
-			switch(type)
-			{
-				case 'comment':
-					data.postUrl = thing.link_permalink;
-					data.url = data.postUrl + thing.id;
-					break;
+			case 'image':
+			case 'text':
+				data.url = thing.url;
+				break;
 
-				case 'image':
-				case 'text':
-					data.url = thing.url;
-					break;
+			case 'video':
+				data.vidUrl = thing.secure_media.reddit_video.fallback_url
+					.replace('?source=fallback', '');
 
-				case 'video':
-					data.vidUrl = thing.secure_media.reddit_video.fallback_url
-									.replace('?source=fallback', '');
+				data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
+				break;
 
-					data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
-					break;
+			case 'gallery':
+				data.urlArray = Object.values(thing.media_metadata).map(img => img.s.u);
+				break;
 
-				case 'gallery':
-					data.urlArray = Object.values(thing.media_metadata).map(img => img.s.u);
-					break;
+			default:
+				break;
+		}
 
-				default:
-					break;
-			}
-
-			return data;
-		});
-	})
+		return data;
+	});
 }
 
 // returns a diffrent promise for each type of save
-function downloadSave(data)
+function downloadPromise(data)
 {
 	const uniqueStr = () =>
 	{
@@ -87,26 +82,26 @@ function downloadSave(data)
 		{
 			min = Math.ceil(min);
 			max = Math.floor(max);
-		
+
 			const randomInt = Math.floor(Math.random() * (max - min + 1)) + min;
-		
+
 			return randomInt;
 		}
 
 		const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 		const charactersLength = characters.length;
-	
+
 		let result = '';
 		for (let i = 0; i < getRandomInt(10, 20); i++)
 		{
 			result += characters.charAt(Math.floor(Math.random() * charactersLength));
 		}
-	
+
 		return result;
 	};
 
 	const dest = './downloads/'
-	switch(data.type)
+	switch (data.type)
 	{
 		case 'comment':
 		case 'text':
@@ -121,7 +116,7 @@ function downloadSave(data)
 			{ // not finalized, kinda just put this part together
 				return new Promise(async () =>
 				{
-					for(const url of data.urlArray)
+					for (const url of data.urlArray)
 					{
 						await download(url, dest);
 					}
@@ -132,7 +127,7 @@ function downloadSave(data)
 		case 'video':
 			{
 				const newDest = `${dest}${uniqueStr()}/`;
-			
+
 				return async () =>
 				{
 					await fs.promises.mkdir(newDest)
@@ -144,39 +139,90 @@ function downloadSave(data)
 }
 
 // Split array into chunks/arrays within an array
-function chunkify(array, chunkLength)
+function subArray(array, numOfArrays)
 {
-	const newArr = []
-	for (let i = 0; i < array.length; i += chunkLength) {
-		newArr.push(array.slice(i, i + chunkLength));
+	const newArr = [];
+	const arrLen = Math.round(array.length / numOfArrays);
+
+	for (let i = 0; i < numOfArrays; i++)
+	{
+		const startIndex = i * arrLen;
+		const isNotDivisible = !(arrLen === array.length / numOfArrays);
+		const onLastIndex = i + 1 === numOfArrays;
+		const endIndex = isNotDivisible && onLastIndex ? array.length : startIndex + arrLen;
+		const subArr = array.slice(startIndex, endIndex);
+		newArr.push(subArr);
 	}
 
 	return newArr;
 }
 
+// Runs parralel downloads on chunked listing
+async function handleDownloading(chunkyListing)
+{
+	// for(const [i, chunk] of Object.entries(chunkyListing))
+	for (const chunk of chunkyListing)
+	{
+		(async () =>
+		{
+			for (const data of chunk)
+			{
+				await downloadPromise(data)
+				.then(() => data.downloaded === true)
+				.catch(e =>
+				{
+					if (e.code === 'ETIMEDOUT')
+					{
+						prompt([
+							{
+								question: 'A download took to long. Would you like to try again?',
+								key: 'confirm',
+							},
+						], ({ confirm }) =>
+						{
+							if (confirm === 'yes')
+							{
+								// Remove already downloaded saves
+								const filteredLising = chunkyListing.map(subArr =>
+									{
+										return subArr.filter(thing => !thing.downloaded);
+									})
+
+								handleDownloading(filteredLising);
+							}
+						});
+					}
+					else throw e;
+				})
+			}
+		})()
+	}
+}
+
 // callback that is called when fetch limit prompt has been answered
 function startCallback({ fetchLimit, chunkLength })
 {
-	getUrls(+fetchLimit || 10)
-		.then(listing => chunkify([...listing], chunkLength || 2))
-		.then(async chunkyListing =>
-		{	
-			for(const chunk of chunkyListing)
-			{
-				const promiseArray = chunk.map(data => downloadSave(data));
-				await Promise.all(promiseArray);
-			}
-		})
+	fetchSaves(+fetchLimit || 10)
+		.then(formatListing)
+		.then(listing => subArray([...listing], chunkLength || 2))
+		.then(handleDownloading);
 }
 
 // start program with fetch limit prompt
-prompt([
-	{
-		question: 'How many saves do you want to fetch?',
-		key: 'fetchLimit', 
-	},
-	{
-		question: 'How many parrallel downloads do you want?',
-		key: 'chunkLength', 
-	},
-], startCallback)
+function init()
+{
+	const promptArray = [
+		{
+			question: 'How many saves do you want to fetch?',
+			key: 'fetchLimit',
+		},
+		{
+			question: 'How many parrallel downloads do you want?',
+			key: 'chunkLength',
+		},
+	]
+
+	prompt(promptArray, startCallback)
+}
+
+init();
