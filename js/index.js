@@ -26,7 +26,9 @@ const r = new Snoowrap({
 // fetch saves
 function fetchSaves(limit)
 {
-	if (limit === 'all') return r.getMe().getSavedContent().fetchAll();
+	console.log('Fetching listing from Reddit.com...')
+
+	if (limit === 'all') return r.getMe().getSavedContent().fetchAll()
 	return r.getMe().getSavedContent({ limit });
 }
 
@@ -107,7 +109,7 @@ function downloadPromise(data)
 		case 'text':
 			// Skip over them because they don't have files that can be downloaded,
 			// and regex-ing over them to get image/video urls is difficult
-			break;
+			return;
 
 		case 'image':
 			return download(data.url, dest);
@@ -128,12 +130,9 @@ function downloadPromise(data)
 			{
 				const newDest = `${dest}${uniqueStr()}/`;
 
-				return async () =>
-				{
-					await fs.promises.mkdir(newDest)
-					await download(data.vidUrl, newDest);
-					await download(data.audioUrl, newDest);
-				}
+				return fs.promises.mkdir(newDest)
+					.then(() => download(data.vidUrl, newDest))
+					.then(() => download(data.audioUrl, newDest));
 			}
 	}
 }
@@ -158,8 +157,10 @@ function subArray(array, numOfArrays)
 }
 
 // Runs parralel downloads on chunked listing
-function handleDownloads(listing)
+function handleDownloads(listing, chunkLength)
 {
+	console.log('Downloading saves...')
+
 	return new Promise(resolve =>
 	{
 		const chunkyListing = subArray([...listing], chunkLength || 2);
@@ -171,16 +172,18 @@ function handleDownloads(listing)
 		{
 			(async () =>
 			{
-				for(const [i, data] of Object.entries(chunk))
+				for (const [i, data] of Object.entries(chunk))
 				// for (const data of chunk)
 				{
-					try {
+					try
+					{
 						await downloadPromise(data)
 
 						data.downloaded === true;
-						if(i === chunk.length - 1) finishedArrays++;
-						if(numOfArrays === finishedArrays) resolve(listing);
-					} catch (e) {
+						if (+i === chunk.length - 1) finishedArrays += 1;
+						if (numOfArrays === finishedArrays) resolve(listing);
+					} catch (e)
+					{
 						if (e.code === 'ETIMEDOUT')
 						{
 							prompt([
@@ -212,6 +215,7 @@ function handleDownloads(listing)
 
 function unsave(listing)
 {
+	console.log('Unsaving downloaded submissions from saves...');
 	console.log(listing);
 	// TODO: Implement unsave feature
 }
@@ -219,9 +223,11 @@ function unsave(listing)
 // callback that is called when fetch limit prompt has been answered
 function startCallback({ fetchLimit, chunkLength })
 {
+	const downloadListing = listing => handleDownloads(listing, chunkLength);
+
 	fetchSaves(+fetchLimit || 10)
 		.then(formatListing)
-		.then(handleDownloads)
+		.then(downloadListing)
 		.then(unsave);
 }
 
