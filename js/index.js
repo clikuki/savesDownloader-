@@ -158,45 +158,62 @@ function subArray(array, numOfArrays)
 }
 
 // Runs parralel downloads on chunked listing
-async function handleDownloading(chunkyListing)
+function handleDownloads(listing)
 {
-	// for(const [i, chunk] of Object.entries(chunkyListing))
-	for (const chunk of chunkyListing)
+	return new Promise(resolve =>
 	{
-		(async () =>
+		const chunkyListing = subArray([...listing], chunkLength || 2);
+		const numOfArrays = chunkyListing.length;
+		let finishedArrays = 0;
+
+		// for(const [i, chunk] of Object.entries(chunkyListing))
+		for (const chunk of chunkyListing)
 		{
-			for (const data of chunk)
+			(async () =>
 			{
-				await downloadPromise(data)
-				.then(() => data.downloaded === true)
-				.catch(e =>
+				for(const [i, data] of Object.entries(chunk))
+				// for (const data of chunk)
 				{
-					if (e.code === 'ETIMEDOUT')
-					{
-						prompt([
-							{
-								question: 'A download took to long. Would you like to try again?',
-								key: 'confirm',
-							},
-						], ({ confirm }) =>
+					try {
+						await downloadPromise(data)
+
+						data.downloaded === true;
+						if(i === chunk.length - 1) finishedArrays++;
+						if(numOfArrays === finishedArrays) resolve(listing);
+					} catch (e) {
+						if (e.code === 'ETIMEDOUT')
 						{
-							if (confirm === 'yes')
+							prompt([
+								{
+									question: 'A download took to long. Would you like to try again?',
+									key: 'confirm',
+								},
+							], ({ confirm }) =>
 							{
-								// Remove already downloaded saves
-								const filteredLising = chunkyListing.map(subArr =>
+								if (confirm === 'yes')
+								{
+									// Remove already downloaded saves
+									const filteredLising = chunkyListing.map(subArr =>
 									{
 										return subArr.filter(thing => !thing.downloaded);
 									})
 
-								handleDownloading(filteredLising);
-							}
-						});
+									handleDownloads(filteredLising);
+								}
+							});
+						}
+						else throw e;
 					}
-					else throw e;
-				})
-			}
-		})()
-	}
+				}
+			})()
+		}
+	})
+}
+
+function unsave(listing)
+{
+	console.log(listing);
+	// TODO: Implement unsave feature
 }
 
 // callback that is called when fetch limit prompt has been answered
@@ -204,8 +221,8 @@ function startCallback({ fetchLimit, chunkLength })
 {
 	fetchSaves(+fetchLimit || 10)
 		.then(formatListing)
-		.then(listing => subArray([...listing], chunkLength || 2))
-		.then(handleDownloading);
+		.then(handleDownloads)
+		.then(unsave);
 }
 
 // start program with fetch limit prompt
