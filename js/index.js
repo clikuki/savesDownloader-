@@ -4,6 +4,7 @@ const fs = require('fs');
 const getThingType = require('./getThingType');
 const prompt = require('./prompt');
 const download = require('./download');
+const terminalProgress = require('./terminalProgress');
 
 const userInfo = (() =>
 { // load dev or user credentials
@@ -23,16 +24,22 @@ const r = new Snoowrap({
 	password: userInfo.PASSWORD,
 })
 
-// fetch saves
-function fetchSaves(limit)
+// Fetch saves
+async function fetchSaves(limit)
 {
-	console.log('Fetching listing from Reddit.com...')
+	const processStr = 'Fetching your saves from Reddit.com';
+	const finishStr = 'Finished fetching your saves!';
+	const finishProgress = terminalProgress(processStr, finishStr);
 
-	if (limit === 'all') return r.getMe().getSavedContent().fetchAll()
-	return r.getMe().getSavedContent({ limit });
+	let listing;
+	if (limit === 'all') listing = await r.getMe().getSavedContent().fetchAll()
+	listing = await r.getMe().getSavedContent({ limit });
+
+	finishProgress();
+	return listing;
 }
 
-// takes the needed data from the listing and return it
+// Takes the needed data from the listing and return it
 function formatListing(listing)
 {
 	return listing.map(thing =>
@@ -159,7 +166,9 @@ function subArray(array, numOfArrays)
 // Runs parralel downloads on chunked listing
 function handleDownloads(listing, chunkLength)
 {
-	console.log('Downloading saves...')
+	const processStr = 'Downloading saves';
+	const finishStr = 'Finished Downloading!';
+	const finishProgress = terminalProgress(processStr, finishStr);
 
 	return new Promise(resolve =>
 	{
@@ -181,7 +190,11 @@ function handleDownloads(listing, chunkLength)
 
 						data.downloaded === true;
 						if (+i === chunk.length - 1) finishedArrays += 1;
-						if (numOfArrays === finishedArrays) resolve(listing);
+						if (numOfArrays === finishedArrays)
+						{
+							finishProgress();
+							resolve(listing);
+						}
 					} catch (e)
 					{
 						if (e.code === 'ETIMEDOUT')
@@ -215,7 +228,11 @@ function handleDownloads(listing, chunkLength)
 
 function unsave(listing)
 {
-	console.log('Unsaving downloaded submissions from saves...');
+	const processStr = 'Unsaving downloaded submissions from saves';
+	const finishStr = 'Finished Unsaving!';
+	const finishProgress = terminalProgress(processStr, finishStr);
+	finishProgress();
+	
 	console.log(listing);
 	// TODO: Implement unsave feature
 }
