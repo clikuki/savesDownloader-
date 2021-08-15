@@ -1,10 +1,14 @@
 const Snoowrap = require('snoowrap');
 const fs = require('fs');
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
 
 const getType = require('./getType');
 const prompt = require('./prompt');
 const download = require('./download');
 const terminalProgress = require('./terminalProgress');
+
+const argv = yargs(hideBin(process.argv)).argv;
 
 const userInfo = (() =>
 { // load dev or user credentials
@@ -29,13 +33,13 @@ async function fetchSaves(limit)
 {
 	const processStr = 'Fetching your saves from Reddit.com';
 	const finishStr = 'Finished fetching your saves!';
-	const finishProgress = terminalProgress(processStr, finishStr);
+	terminalProgress.start(processStr);
 
 	let listing;
 	if (limit === 'all') listing = await r.getMe().getSavedContent().fetchAll()
 	listing = await r.getMe().getSavedContent({ limit });
 
-	finishProgress();
+	terminalProgress.stop(finishStr);
 	return listing;
 }
 
@@ -169,7 +173,7 @@ function handleDownloads(listing, chunkLength)
 {
 	const processStr = 'Downloading saves';
 	const finishStr = 'Finished Downloading!';
-	const finishProgress = terminalProgress(processStr, finishStr);
+	terminalProgress.start(processStr);
 
 	return new Promise(resolve =>
 	{
@@ -193,7 +197,7 @@ function handleDownloads(listing, chunkLength)
 						if (+i === chunk.length - 1) finishedArrays += 1;
 						if (numOfArrays === finishedArrays)
 						{
-							finishProgress();
+							terminalProgress.stop(finishStr);
 							resolve(listing);
 						}
 					} catch (e)
@@ -231,39 +235,79 @@ function unsave(listing)
 {
 	const processStr = 'Unsaving downloaded submissions from saves';
 	const finishStr = 'Finished Unsaving!';
-	const finishProgress = terminalProgress(processStr, finishStr);
-	finishProgress();
+	terminalProgress.start(processStr);
+	terminalProgress.stop(finishStr);
 	
 	console.log(listing);
+	return listing;
 	// TODO: Implement unsave feature
 }
 
-// callback that is called when fetch limit prompt has been answered
-function startCallback({ fetchLimit, chunkLength })
+// Returns the required arguments for the program
+function getArgs()
 {
-	const downloadListing = listing => handleDownloads(listing, chunkLength);
+	let fetchLimit = userInfo.FETCHLIMIT || 10;
+	let parallelDownloads = userInfo.PARALLELDOWNLOADS || 3;
+	let unsaveBool = userInfo.UNSAVE || true;
+	
+	switch(true) // Gets limit
+	{
+		case typeof argv.limit === 'string' && argv.limit.toLowerCase() === 'all':
+			fetchLimit = 'all';
+			break;
+			
+		case typeof argv.limit !== 'number':
+		case argv.limit === 0:
+			break;
+		
+		default:
+			fetchLimit = argv.limit;
+			break;
+	}
+	
+	switch(true) // Gets num of parallel downloads
+	{
+		case typeof argv.parallel !== 'number':
+		case argv.parallel === 0:
+			break;
+	
+		default:
+			parallelDownloads = argv.parallel
+			break;
+	}
+	
+	switch(true) // Gets boolean used to check if program should unsave listing
+	{
+		case argv.unsave === undefined:
+			break;
+	
+		case argv.unsave.toLowerCase() === 'true':
+			unsaveBool = true;
+			break;
+	
+		case argv.unsave.toLowerCase() === 'false':
+			unsaveBool = false;
+			break;
+	
+		default:
+			break;
+	}
+
+	return { fetchLimit, parallelDownloads, unsaveBool };
+}
+
+// Starts program
+function init()
+{
+	const { fetchLimit, parallelDownloads, unsaveBool } = getArgs();
+
+	const downloadFunc = listing => handleDownloads(listing, parallelDownloads);
+	const unsaveFunc = listing => unsaveBool ? unsave(listing) : listing;
 
 	fetchSaves(+fetchLimit || 10)
 		.then(formatListing)
-		.then(downloadListing)
-		.then(unsave);
-}
-
-// start program with fetch limit prompt
-function init()
-{
-	const promptArray = [
-		{
-			question: 'How many saves do you want to fetch?',
-			key: 'fetchLimit',
-		},
-		{
-			question: 'How many parrallel downloads do you want?',
-			key: 'chunkLength',
-		},
-	]
-
-	prompt(promptArray, startCallback)
+		.then(downloadFunc)
+		.then(unsaveFunc);
 }
 
 init();

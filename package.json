@@ -10,7 +10,8 @@
   "license": "MIT",
   "dependencies": {
     "node-fetch": "^2.6.1",
-    "snoowrap": "^1.23.0"
+    "snoowrap": "^1.23.0",
+    "yargs": "^16.2.0"
   },
   "devDependencies": {
     "jest": "^27.0.6"

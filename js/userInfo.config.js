@@ -3,4 +3,7 @@ module.exports = {
 	CLIENT_ID: 'Client ID here',
 	USERNAME: 'Username here',
 	PASSWORD: 'Pwd here',
+	FETCHLIMIT: undefined,
+	PARALLELDOWNLOADS: undefined,
+	UNSAVE: undefined,
 }
