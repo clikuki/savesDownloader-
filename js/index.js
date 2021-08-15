@@ -68,7 +68,8 @@ const userInfo = (() =>
 	try
 	{
 		return require('./dev.config.js');
-	} catch {
+	} catch
+	{
 		return require('./userInfo.config.js');
 	}
 })();
@@ -313,13 +314,10 @@ function init()
 {
 	const { fetchLimit, parallelDownloads, unsaveBool } = getArgs();
 
-	const downloadFunc = listing => handleDownloads(listing, parallelDownloads);
-	const unsaveFunc = listing => unsaveBool ? unsave(listing) : listing;
-
 	fetchSaves(+fetchLimit || 10)
 		.then(formatListing)
-		.then(downloadFunc)
-		.then(unsaveFunc);
+		.then(listing => handleDownloads(listing, parallelDownloads))
+		.then(listing => unsaveBool ? unsave(listing) : listing);
 }
 
 init();
