@@ -38,7 +38,7 @@ const isObject = (obj) =>
 	return typeof obj === 'object' && obj !== null && !Array.isArray(obj);
 }
 
-module.exports = (thing) =>
+const getType = (thing) =>
 {
 	switch(true)
 	{
@@ -52,4 +52,6 @@ module.exports = (thing) =>
 		default:
 			return getLinkType(thing);
 	}
-};
+}
+
+module.exports = getType;

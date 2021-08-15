@@ -1,7 +1,7 @@
 const Snoowrap = require('snoowrap');
 const fs = require('fs');
 
-const getThingType = require('./getThingType');
+const getType = require('./getType');
 const prompt = require('./prompt');
 const download = require('./download');
 const terminalProgress = require('./terminalProgress');
@@ -44,7 +44,7 @@ function formatListing(listing)
 {
 	return listing.map(thing =>
 	{
-		const type = getThingType(thing);
+		const type = getType(thing);
 		const data = {
 			downloaded: false,
 			unsaved: false,
