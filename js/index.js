@@ -8,7 +8,60 @@ const prompt = require('./prompt');
 const download = require('./download');
 const terminalProgress = require('./terminalProgress');
 
-const argv = yargs(hideBin(process.argv)).argv;
+const argv = yargs(hideBin(process.argv))
+	.coerce('limit', (arg) =>
+	{
+		switch (true)
+		{
+			case typeof arg === 'string' && arg === 'all':
+				return 'all';
+
+			case typeof arg !== 'number':
+			case +arg === 0:
+				break;
+
+			default:
+				return +arg;
+		}
+	})
+	.coerce('parallel', (arg) =>
+	{
+		switch (true)
+		{
+			case typeof arg !== 'number':
+			case +arg === 0:
+				break;
+
+			default:
+				return +arg;
+		}
+	})
+	.coerce('unsave', (arg) =>
+	{
+		switch (true)
+		{
+			case typeof arg === 'boolean':
+				return arg;
+
+			case arg === undefined:
+				break;
+
+			case arg.toLowerCase() === 'true':
+				return true;
+
+			case arg.toLowerCase() === 'false':
+				return false;
+
+			default:
+				break;
+		}
+	})
+	.default({
+		limit: 10,
+		parallel: 3,
+		unsave: true
+	})
+	.argv;
 
 const userInfo = (() =>
 { // load dev or user credentials
@@ -237,7 +290,7 @@ function unsave(listing)
 	const finishStr = 'Finished Unsaving!';
 	terminalProgress.start(processStr);
 	terminalProgress.stop(finishStr);
-	
+
 	console.log(listing);
 	return listing;
 	// TODO: Implement unsave feature
@@ -246,54 +299,13 @@ function unsave(listing)
 // Returns the required arguments for the program
 function getArgs()
 {
-	let fetchLimit = userInfo.FETCHLIMIT || 10;
-	let parallelDownloads = userInfo.PARALLELDOWNLOADS || 3;
-	let unsaveBool = userInfo.UNSAVE || true;
-	
-	switch(true) // Gets limit
-	{
-		case typeof argv.limit === 'string' && argv.limit.toLowerCase() === 'all':
-			fetchLimit = 'all';
-			break;
-			
-		case typeof argv.limit !== 'number':
-		case argv.limit === 0:
-			break;
-		
-		default:
-			fetchLimit = argv.limit;
-			break;
-	}
-	
-	switch(true) // Gets num of parallel downloads
-	{
-		case typeof argv.parallel !== 'number':
-		case argv.parallel === 0:
-			break;
-	
-		default:
-			parallelDownloads = argv.parallel
-			break;
-	}
-	
-	switch(true) // Gets boolean used to check if program should unsave listing
-	{
-		case argv.unsave === undefined:
-			break;
-	
-		case argv.unsave.toLowerCase() === 'true':
-			unsaveBool = true;
-			break;
-	
-		case argv.unsave.toLowerCase() === 'false':
-			unsaveBool = false;
-			break;
-	
-		default:
-			break;
+	let argsObj = {
+		fetchLimit: userInfo.FETCHLIMIT || argv.limit,
+		parallelDownloads: userInfo.PARALLELDOWNLOADS || argv.parallel,
+		unsaveBool: userInfo.UNSAVE !== undefined ? userInfo.UNSAVE : argv.unsave,
 	}
 
-	return { fetchLimit, parallelDownloads, unsaveBool };
+	return argsObj;
 }
 
 // Starts program
