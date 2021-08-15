@@ -1,5 +1,7 @@
 const readline = require('readline');
 
+let progressInterval;
+
 const clearLine = () =>
 {
 	readline.clearLine(process.stdout);
@@ -8,29 +10,38 @@ const clearLine = () =>
 
 const getDots = (numOfDots) => Array.from({ length: numOfDots }, () => '.').join('');
 
-const terminalProgress = (progressString, finishString) =>
+const write = (str) =>
 {
+	clearLine();
+	process.stdout.write(str);
+}
+
+const start = (progressString) =>
+{
+	if(progressInterval) return;
+
 	let dotsNum = 0;
 	const intervalCB = () =>
 	{
 		let dotStr = getDots(++dotsNum);
 		if(dotsNum === 3) dotsNum = 0;
-		clearLine();
-		process.stdout.write(`${progressString} ${dotStr}`);
+		write(`${progressString} ${dotStr}`);
 	}
 	
-	intervalCB();
-	const progressInterval = setInterval(intervalCB, 500);
+	intervalCB(); // Call once at start
+	progressInterval = setInterval(intervalCB, 500);
+}
 
-	/**
-	 * Signals to user that the process has ended and displays finish message
-	 */
-	return () =>
-	{
-		clearInterval(progressInterval)
-		clearLine();
-		process.stdout.write(`${finishString}\n`);
-	};
+const stop = (finishString) =>
+{
+	clearInterval(progressInterval);
+	progressInterval = undefined;
+	write(`${finishString}\n`);
+}
+
+const terminalProgress = {
+	start,
+	stop,
 }
 
 module.exports = terminalProgress;
