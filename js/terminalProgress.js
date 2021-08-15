@@ -16,7 +16,7 @@ const terminalProgress = (progressString, finishString) =>
 		let dotStr = getDots(++dotsNum);
 		if(dotsNum === 3) dotsNum = 0;
 		clearLine();
-		process.stdout.write(`${progressString}${dotStr}`);
+		process.stdout.write(`${progressString} ${dotStr}`);
 	}
 	
 	intervalCB();

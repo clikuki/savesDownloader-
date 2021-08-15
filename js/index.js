@@ -46,7 +46,8 @@ function formatListing(listing)
 	{
 		const type = getThingType(thing);
 		const data = {
-			downloaded: true,
+			downloaded: false,
+			unsaved: false,
 			id: thing.id,
 			type,
 		}
@@ -188,7 +189,7 @@ function handleDownloads(listing, chunkLength)
 					{
 						await downloadPromise(data)
 
-						data.downloaded === true;
+						data.downloaded = true;
 						if (+i === chunk.length - 1) finishedArrays += 1;
 						if (numOfArrays === finishedArrays)
 						{
