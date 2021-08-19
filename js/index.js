@@ -6,6 +6,7 @@ const { hideBin } = require('yargs/helpers');
 const getType = require('./getType');
 const prompt = require('./prompt');
 const download = require('./download');
+const getRandFileName = require('./getRandFileName');
 const terminalProgress = require('./terminalProgress');
 
 const argv = yargs(hideBin(process.argv))
@@ -178,7 +179,10 @@ function downloadPromise(data)
 			return;
 
 		case 'image':
-			return download(data.url, dest);
+			{
+				const fileName = getRandFileName(url);
+				return download(data.url, dest, fileName);
+			}
 
 		case 'gallery':
 			// Not finalized, kinda just put this part together
@@ -188,7 +192,8 @@ function downloadPromise(data)
 				{
 					try
 					{
-						await download(url, dest);
+						const fileName = getRandFileName(url);
+						await download(url, dest, fileName);
 					}
 					catch (e)
 					{
@@ -201,10 +206,12 @@ function downloadPromise(data)
 		case 'video':
 			{
 				const newDest = `${dest}${uniqueStr()}/`;
+				const vidName = getRandFileName(data.vidUrl);
+				const audioName = getRandFileName(data.audioUrl);
 
 				return fs.promises.mkdir(newDest)
-					.then(() => download(data.vidUrl, newDest))
-					.then(() => download(data.audioUrl, newDest));
+					.then(() => download(data.vidUrl, newDest, vidName))
+					.then(() => download(data.audioUrl, newDest, audioName));
 			}
 	}
 }
