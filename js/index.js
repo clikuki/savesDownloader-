@@ -181,16 +181,22 @@ function downloadPromise(data)
 			return download(data.url, dest);
 
 		case 'gallery':
-			{ // not finalized, kinda just put this part together
-				return new Promise(async () =>
+			// Not finalized, kinda just put this part together
+			return new Promise(async (resolve, reject) =>
+			{
+				for (const url of data.urlArray)
 				{
-					for (const url of data.urlArray)
+					try
 					{
 						await download(url, dest);
 					}
-				})
-			}
-			break;
+					catch (e)
+					{
+						reject(e);
+						break;
+					}
+				}
+			})
 
 		case 'video':
 			{
@@ -204,22 +210,19 @@ function downloadPromise(data)
 }
 
 // Split array into chunks/arrays within an array
-function subArray(array, numOfArrays)
+function subArray(array, numOfSubArrays)
 {
-	const newArr = [];
-	const arrLen = Math.round(array.length / numOfArrays);
+	const newArray = Array.from({ length: numOfSubArrays }, () => []);
 
-	for (let i = 0; i < numOfArrays; i++)
+	let subArrIndex = 0;
+	for(const elem of array)
 	{
-		const startIndex = i * arrLen;
-		const isNotDivisible = !(arrLen === array.length / numOfArrays);
-		const onLastIndex = i + 1 === numOfArrays;
-		const endIndex = isNotDivisible && onLastIndex ? array.length : startIndex + arrLen;
-		const subArr = array.slice(startIndex, endIndex);
-		newArr.push(subArr);
+		newArray[subArrIndex].push(elem);
+		if(subArrIndex < numOfSubArrays - 1) subArrIndex += 1; 
+		else subArrIndex = 0; 
 	}
 
-	return newArr;
+	return newArray;
 }
 
 // Runs parralel downloads on chunked listing
