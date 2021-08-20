@@ -34,9 +34,12 @@ const start = (progressString) =>
 
 const stop = (finishString) =>
 {
-	clearInterval(progressInterval);
-	progressInterval = undefined;
-	write(`${finishString}\n`);
+	if(progressInterval !== undefined)
+	{
+		clearInterval(progressInterval);
+		progressInterval = undefined;
+		write(`${finishString}\n`);
+	}
 }
 
 const terminalProgress = {

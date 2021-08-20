@@ -8,6 +8,7 @@ const prompt = require('./prompt');
 const download = require('./download');
 const getRandFileName = require('./getRandFileName');
 const terminalProgress = require('./terminalProgress');
+const { Console } = require('console');
 
 const argv = yargs(hideBin(process.argv))
 	.coerce('limit', (arg) =>
@@ -84,18 +85,45 @@ const r = new Snoowrap({
 })
 
 // Fetch saves
-async function fetchSaves(limit)
+function fetchSaves(limit)
 {
-	const processStr = 'Fetching your saves from Reddit.com';
-	const finishStr = 'Finished fetching your saves!';
-	terminalProgress.start(processStr);
-
-	let listing;
-	if (limit === 'all') listing = await r.getMe().getSavedContent().fetchAll()
-	listing = await r.getMe().getSavedContent({ limit });
-
-	terminalProgress.stop(finishStr);
-	return listing;
+	return new Promise(async (resolve) =>
+	{
+		const processStr = 'Fetching your saves from Reddit.com';
+		const finishStr = 'Finished fetching your saves!';
+		terminalProgress.start(processStr);
+	
+		try
+		{
+			let listing;
+			if (limit === 'all') listing = await r.getMe().getSavedContent().fetchAll()
+			else listing = await r.getMe().getSavedContent({ limit });
+	
+			terminalProgress.stop(finishStr);
+			resolve(listing);
+		}
+		catch (e)
+		{
+			if (e.code === 'ETIMEDOUT')
+			{
+				prompt([
+					{
+						question: 'The request took too long. Would you like to try again?',
+						key: 'confirm',
+					},
+				], async ({ confirm }) =>
+				{
+					if(confirm === 'yes')
+					{
+						const listing = await fetchSaves(limit);
+						terminalProgress.stop(finishStr);
+						resolve(listing);
+					}
+				});
+			}
+			else throw e;
+		}
+	})
 }
 
 // Takes the needed data from the listing and return it
@@ -180,7 +208,7 @@ function downloadPromise(data)
 
 		case 'image':
 			{
-				const fileName = getRandFileName(url);
+				const fileName = getRandFileName(data.url);
 				return download(data.url, dest, fileName);
 			}
 
@@ -222,11 +250,11 @@ function subArray(array, numOfSubArrays)
 	const newArray = Array.from({ length: numOfSubArrays }, () => []);
 
 	let subArrIndex = 0;
-	for(const elem of array)
+	for (const elem of array)
 	{
 		newArray[subArrIndex].push(elem);
-		if(subArrIndex < numOfSubArrays - 1) subArrIndex += 1; 
-		else subArrIndex = 0; 
+		if (subArrIndex < numOfSubArrays - 1) subArrIndex += 1;
+		else subArrIndex = 0;
 	}
 
 	return newArray;
@@ -245,53 +273,50 @@ function handleDownloads(listing, chunkLength)
 		const numOfArrays = chunkyListing.length;
 		let finishedArrays = 0;
 
-		// for(const [i, chunk] of Object.entries(chunkyListing))
-		for (const chunk of chunkyListing)
+		chunkyListing.forEach(async chunk =>
 		{
-			(async () =>
+			for (const [i, data] of Object.entries(chunk))
 			{
-				for (const [i, data] of Object.entries(chunk))
-				// for (const data of chunk)
+				try
 				{
-					try
-					{
-						await downloadPromise(data)
+					await downloadPromise(data)
 
-						data.downloaded = true;
-						if (+i === chunk.length - 1) finishedArrays += 1;
-						if (numOfArrays === finishedArrays)
-						{
-							terminalProgress.stop(finishStr);
-							resolve(listing);
-						}
-					} catch (e)
+					data.downloaded = true;
+					if (+i === chunk.length - 1) finishedArrays += 1;
+					if (numOfArrays === finishedArrays)
 					{
-						if (e.code === 'ETIMEDOUT')
-						{
-							prompt([
-								{
-									question: 'A download took to long. Would you like to try again?',
-									key: 'confirm',
-								},
-							], ({ confirm }) =>
-							{
-								if (confirm === 'yes')
-								{
-									// Remove already downloaded saves
-									const filteredLising = chunkyListing.map(subArr =>
-									{
-										return subArr.filter(thing => !thing.downloaded);
-									})
-
-									handleDownloads(filteredLising);
-								}
-							});
-						}
-						else throw e;
+						terminalProgress.stop(finishStr);
+						resolve(listing);
 					}
+				} catch (e)
+				{
+					if (e.code === 'ETIMEDOUT')
+					{
+						prompt([
+							{
+								question: 'A download took to long. Would you like to try again?',
+								key: 'confirm',
+							},
+						], async ({ confirm }) =>
+						{
+							if (confirm === 'yes')
+							{
+								// Remove already downloaded saves
+								const filteredLising = chunkyListing.map(subArr =>
+								{
+									return subArr.filter(thing => !thing.downloaded);
+								})
+
+								await handleDownloads(filteredLising);
+								terminalProgress.stop(finishStr);
+								resolve(listing);
+							}
+						});
+					}
+					else throw e;
 				}
-			})()
-		}
+			}
+		})
 	})
 }
 
@@ -310,7 +335,7 @@ function unsave(listing)
 // Returns the required arguments for the program
 function getArgs()
 {
-	let argsObj = {
+	const argsObj = {
 		fetchLimit: userInfo.FETCHLIMIT || argv.limit,
 		parallelDownloads: userInfo.PARALLELDOWNLOADS || argv.parallel,
 		unsaveBool: userInfo.UNSAVE !== undefined ? userInfo.UNSAVE : argv.unsave,
