@@ -8,7 +8,6 @@ const prompt = require('./prompt');
 const download = require('./download');
 const getRandFileName = require('./getRandFileName');
 const terminalProgress = require('./terminalProgress');
-const { Console } = require('console');
 
 const argv = yargs(hideBin(process.argv))
 	.coerce('limit', (arg) =>
