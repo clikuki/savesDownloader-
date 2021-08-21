@@ -8,6 +8,7 @@ const prompt = require('./prompt');
 const download = require('./download');
 const getRandFileName = require('./getRandFileName');
 const terminalProgress = require('./terminalProgress');
+const { resolve } = require('path');
 
 const argv = yargs(hideBin(process.argv))
 	.coerce('limit', (arg) =>
@@ -232,6 +233,8 @@ function downloadPromise(data)
 						break;
 					}
 				}
+
+				resolve();
 			})
 
 		case 'video':
@@ -334,11 +337,14 @@ function unsave(listing)
 	const processStr = 'Unsaving downloaded submissions from saves';
 	const finishStr = 'Finished Unsaving!';
 	terminalProgress.start(processStr);
-	terminalProgress.stop(finishStr);
 
-	console.log(listing);
-	return listing;
-	// TODO: Implement unsave feature
+	const promise = Promise.all(listing.map(({id}) => r.getSubmission(id).unsave()));
+
+	return promise.then(() =>
+	{
+		resolve();
+		terminalProgress.stop(finishStr);
+	})
 }
 
 // Returns the required arguments for the program
@@ -359,6 +365,7 @@ function init({ fetchLimit, parallelDownloads, unsaveBool })
 	fetchSaves(fetchLimit).then(formatListing)
 		.then(async listing =>
 		{
+			
 			await handleDownloads(listing, parallelDownloads);
 
 			if(unsaveBool)
