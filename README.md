@@ -40,6 +40,6 @@ Then enter `node js/index limit='num of saves' parallel='num of files to downloa
 To avoid having to enter params for the program every time you run it, you can add default values.
 Go to the program folder, go to the folder named js, and open `userInfo.js` with a text editor such as notepad or VSCode.
 Then, replace these parameters with your own values:
-> FETCHLIMIT - Number of saves to fetch from Reddit.com
-> PARALLELDOWNLOADS - Number of files to download at a time.
-> UNSAVE - Whether the program remove submissions from your saves. Its a good idea to set this to True
+> FETCHLIMIT - Number of saves to fetch from Reddit.com  
+> PARALLELDOWNLOADS - Number of files to download at a time.  
+> UNSAVE - Whether the program remove submissions from your saves. Its a good idea to set this to True  
