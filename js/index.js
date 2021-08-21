@@ -358,16 +358,11 @@ function getArgs()
 function init({ fetchLimit, parallelDownloads, unsaveBool })
 {
 	fetchSaves(fetchLimit).then(formatListing)
-		.then(async listing =>
+		.then(listing =>
 		{
-			await handleDownloads(listing, parallelDownloads);
-
-			if(unsaveBool)
-			{
-				await unsave(listing);
-			}
-
-			console.log('\nScript has finished!')
+			handleDownloads(listing, parallelDownloads)
+				.then(() => unsaveBool && unsave(listing))
+				.finally(() => console.log('\nScript has finished!'));
 		})
 }
 
