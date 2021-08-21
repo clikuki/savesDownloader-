@@ -106,12 +106,14 @@ function fetchSaves(limit)
 		{
 			if (e.code === 'ETIMEDOUT')
 			{
-				prompt([
+				const questionArray = [
 					{
 						question: 'The request took too long. Would you like to try again?',
 						key: 'confirm',
 					},
-				], async ({ confirm }) =>
+				]
+
+				const promptCallback = async ({ confirm }) =>
 				{
 					if(confirm === 'yes')
 					{
@@ -119,7 +121,9 @@ function fetchSaves(limit)
 						terminalProgress.stop(finishStr);
 						resolve(listing);
 					}
-				});
+				} 
+				
+				prompt(questionArray, promptCallback);
 			}
 			else throw e;
 		}
@@ -269,7 +273,7 @@ function handleDownloads(listing, chunkLength)
 
 	return new Promise(resolve =>
 	{
-		const chunkyListing = subArray([...listing], chunkLength || 2);
+		const chunkyListing = subArray([...listing], chunkLength);
 		const numOfArrays = chunkyListing.length;
 		let finishedArrays = 0;
 
@@ -286,18 +290,21 @@ function handleDownloads(listing, chunkLength)
 					if (numOfArrays === finishedArrays)
 					{
 						terminalProgress.stop(finishStr);
-						resolve(listing);
+						resolve();
 					}
-				} catch (e)
+				}
+				catch (e)
 				{
 					if (e.code === 'ETIMEDOUT')
 					{
-						prompt([
+						const questionArray = [
 							{
 								question: 'A download took to long. Would you like to try again?',
 								key: 'confirm',
 							},
-						], async ({ confirm }) =>
+						]
+
+						const promptCallback = async ({ confirm }) =>
 						{
 							if (confirm === 'yes')
 							{
@@ -309,9 +316,12 @@ function handleDownloads(listing, chunkLength)
 
 								await handleDownloads(filteredLising);
 								terminalProgress.stop(finishStr);
-								resolve(listing);
+								resolve();
 							}
-						});
+						}
+
+						prompt(questionArray, promptCallback);
+						break;
 					}
 					else throw e;
 				}
@@ -345,14 +355,18 @@ function getArgs()
 }
 
 // Starts program
-function init()
+function init({ fetchLimit, parallelDownloads, unsaveBool })
 {
-	const { fetchLimit, parallelDownloads, unsaveBool } = getArgs();
+	fetchSaves(fetchLimit).then(formatListing)
+		.then(async listing =>
+		{
+			await handleDownloads(listing, parallelDownloads);
 
-	fetchSaves(+fetchLimit || 10)
-		.then(formatListing)
-		.then(listing => handleDownloads(listing, parallelDownloads))
-		.then(listing => unsaveBool ? unsave(listing) : listing);
+			if(unsaveBool)
+			{
+				await unsave(listing);
+			}
+		})
 }
 
-init();
+init(getArgs());
