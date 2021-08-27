@@ -1,7 +1,7 @@
 # For development purposes
 dev.config.js
 someTesting.js
-info.txt
+*.txt
 
 # Stop node modules from being comitted
 node_modules/

@@ -94,9 +94,7 @@ function fetchSaves(limit)
 	
 		try
 		{
-			let listing;
-			if (limit === 'all') listing = await r.getMe().getSavedContent().fetchAll()
-			else listing = await r.getMe().getSavedContent({ limit });
+			const listing = await r.getMe().getSavedContent({ limit });
 	
 			terminalProgress.stop(finishStr);
 			resolve(listing);
@@ -174,8 +172,10 @@ function formatListing(listing)
 }
 
 // returns a diffrent promise for each type of save
-function downloadPromise(data)
+const getDownloadPromise = (() =>
 {
+	const dest = './downloads/';
+
 	const uniqueStr = () =>
 	{
 		const getRandomInt = (min, max) =>
@@ -200,54 +200,56 @@ function downloadPromise(data)
 		return result;
 	};
 
-	const dest = './downloads/'
-	switch (data.type)
+	const getPromise = (data) =>
 	{
-		case 'comment':
-		case 'text':
-			// Skip over them because they don't have files that can be downloaded,
-			// and regex-ing over them to get image/video urls is difficult
-			return;
-
-		case 'image':
-			{
-				const fileName = getRandFileName(data.url);
-				return download(data.url, dest, fileName);
-			}
-
-		case 'gallery':
-			// Not finalized, kinda just put this part together
-			return new Promise(async (resolve, reject) =>
-			{
-				for (const url of data.urlArray)
+		switch (data.type)
+		{
+			case 'comment':
+			case 'text':
+				// Skip over them because they don't have files that can be downloaded,
+				// and regex-ing over them to get image/video urls is difficult
+				return Promise.resolve();
+			case 'image':
 				{
-					try
-					{
-						const fileName = getRandFileName(url);
-						await download(url, dest, fileName);
-					}
-					catch (e)
-					{
-						reject(e);
-						break;
-					}
+					const fileName = getRandFileName(data.url);
+					return download(data.url, dest, fileName);
 				}
-
-				resolve();
-			})
-
-		case 'video':
-			{
-				const newDest = `${dest}${uniqueStr()}/`;
-				const vidName = getRandFileName(data.vidUrl);
-				const audioName = getRandFileName(data.audioUrl);
-
-				return fs.promises.mkdir(newDest)
-					.then(() => download(data.vidUrl, newDest, vidName))
-					.then(() => download(data.audioUrl, newDest, audioName));
-			}
+	
+			case 'gallery':
+				return new Promise(async (resolve, reject) =>
+				{
+					for (const url of data.urlArray)
+					{
+						try
+						{
+							const fileName = getRandFileName(url);
+							await download(url, dest, fileName);
+						}
+						catch (e)
+						{
+							reject(e);
+							break;
+						}
+					}
+	
+					resolve();
+				})
+	
+			case 'video':
+				{
+					const newDest = `${dest}${uniqueStr()}/`;
+					const vidName = getRandFileName(data.vidUrl);
+					const audioName = getRandFileName(data.audioUrl);
+	
+					return fs.promises.mkdir(newDest)
+						.then(() => download(data.vidUrl, newDest, vidName))
+						.then(() => download(data.audioUrl, newDest, audioName));
+				}
+		}
 	}
-}
+
+	return (data) => getPromise(data);
+})()
 
 // Split array into chunks/arrays within an array
 function subArray(array, numOfSubArrays)
@@ -284,7 +286,7 @@ function handleDownloads(listing, chunkLength)
 			{
 				try
 				{
-					await downloadPromise(data)
+					await getDownloadPromise(data)
 
 					data.downloaded = true;
 					if (+i === chunk.length - 1) finishedArrays += 1;
@@ -309,9 +311,8 @@ function handleDownloads(listing, chunkLength)
 						{
 							if (confirm === 'yes')
 							{
-								// Remove already downloaded saves
 								const filteredLising = chunkyListing.map(subArr =>
-								{
+								{ // Remove already downloaded saves
 									return subArr.filter(thing => !thing.downloaded);
 								})
 
@@ -324,7 +325,7 @@ function handleDownloads(listing, chunkLength)
 						prompt(questionArray, promptCallback);
 						break;
 					}
-					else throw e;
+					// else throw e;
 				}
 			}
 		})
@@ -337,9 +338,28 @@ function unsave(listing)
 	const finishStr = 'Finished Unsaving!';
 	terminalProgress.start(processStr);
 
-	const promise = Promise.all(listing.map(({ id }) => r.getSubmission(id).unsave()));
+	const unsavePromiseArray = Promise.all(listing.map((thing) =>
+		{
+			const isComment = thing.type === 'comment';
 
-	return promise.then(() => terminalProgress.stop(finishStr));
+			// Change method to getComment if thing is a comment
+			const rMethod = (isComment) ? 'getComment' : 'getSubmission';
+
+			return r[ rMethod ](thing.id)
+				.unsave()
+				.then(() => thing.unsaved = true)
+				.then(() =>
+				{
+					if(isComment)
+					{
+						const stream = fs.createWriteStream('./commentURLs.txt', { flags: 'a' });
+						stream.write(`${thing.url}\n`);
+						stream.end();
+					}
+				});
+		}));
+
+	return unsavePromiseArray.then(() => terminalProgress.stop(finishStr));
 }
 
 // Returns the required arguments for the program
@@ -357,9 +377,9 @@ function getArgs()
 // Starts program
 function init({ fetchLimit, parallelDownloads, unsaveBool })
 {
-	fetchSaves(fetchLimit).then(formatListing)
+	fetchSaves(fetchLimit + 1).then(formatListing)
 		.then(listing =>
-		{
+		{	
 			handleDownloads(listing, parallelDownloads)
 				.then(() => unsaveBool && unsave(listing))
 				.finally(() => console.log('\nScript has finished!'));
