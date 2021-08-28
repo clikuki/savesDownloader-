@@ -340,26 +340,29 @@ function unsave(listing)
 
 	const unsavePromiseArray = Promise.all(listing.map((thing) =>
 		{
-			const isComment = thing.type === 'comment';
+			const isComment = (thing.type === 'comment');
+			const isText = (thing.type === 'text');
 
 			// Change method to getComment if thing is a comment
 			const rMethod = (isComment) ? 'getComment' : 'getSubmission';
 
 			return r[ rMethod ](thing.id)
 				.unsave()
-				.then(() => thing.unsaved = true)
 				.then(() =>
 				{
-					if(isComment)
+					thing.unsaved = true;
+
+					if(isComment || isText)
 					{
-						const stream = fs.createWriteStream('./commentURLs.txt', { flags: 'a' });
-						stream.write(`${thing.url}\n`);
-						stream.end();
+						const file = fs.createWriteStream(`./urls/${thing.type}s.txt`, { flags: 'a' });
+						file.write(`${thing.url}\n`);
+						file.end();
 					}
 				});
 		}));
 
-	return unsavePromiseArray.then(() => terminalProgress.stop(finishStr));
+	return unsavePromiseArray
+		.then(() => terminalProgress.stop(finishStr));
 }
 
 // Returns the required arguments for the program
@@ -375,7 +378,7 @@ function getArgs()
 }
 
 // Starts program
-function init({ fetchLimit, parallelDownloads, unsaveBool })
+function start({ fetchLimit, parallelDownloads, unsaveBool })
 {
 	fetchSaves(fetchLimit + 1).then(formatListing)
 		.then(listing =>
@@ -386,4 +389,4 @@ function init({ fetchLimit, parallelDownloads, unsaveBool })
 		})
 }
 
-init(getArgs());
+start(getArgs());
