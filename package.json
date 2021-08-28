@@ -9,6 +9,7 @@
   "author": "Clikuki",
   "license": "MIT",
   "dependencies": {
+    "istextorbinary": "^6.0.0",
     "node-fetch": "^2.6.1",
     "snoowrap": "^1.23.0",
     "yargs": "^16.2.0"

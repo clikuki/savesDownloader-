@@ -1,5 +1,6 @@
 const Snoowrap = require('snoowrap');
 const fs = require('fs');
+const { isText } = require('istextorbinary');
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 
@@ -243,7 +244,15 @@ const getDownloadPromise = (() =>
 	
 					return fs.promises.mkdir(newDest)
 						.then(() => download(data.vidUrl, newDest, vidName))
-						.then(() => download(data.audioUrl, newDest, audioName));
+						.then(() => download(data.audioUrl, newDest, audioName))
+						.then(() => fs.promises.readFile(newDest + audioName))
+						.then(file =>
+							{
+								if(isText(null, file))
+								{
+									return fs.promises.unlink(newDest + audioName);
+								}
+							});
 				}
 		}
 	}
