@@ -102,7 +102,8 @@ function fetchSaves(limit)
 		}
 		catch (e)
 		{
-			if (e.code === 'ETIMEDOUT')
+			console.log(e.code, e.message);
+			if (/ETIMEDOUT/.test(e.message))
 			{
 				const questionArray = [
 					{
@@ -263,6 +264,8 @@ const getDownloadPromise = (() =>
 // Split array into chunks/arrays within an array
 function subArray(array, numOfSubArrays)
 {
+	if(numOfSubArrays >= array.length) return array.map(item => [item]);
+
 	const newArray = Array.from({ length: numOfSubArrays }, () => []);
 
 	let subArrIndex = 0;
@@ -279,6 +282,8 @@ function subArray(array, numOfSubArrays)
 // Runs parralel downloads on chunked listing
 function handleDownloads(listing, chunkLength)
 {
+	if(listing.length === 0) return Promise.reject(new Error('Listing is empty'));
+
 	const processStr = 'Downloading saves';
 	const finishStr = 'Finished Downloading!';
 	terminalProgress.start(processStr);
@@ -307,7 +312,8 @@ function handleDownloads(listing, chunkLength)
 				}
 				catch (e)
 				{
-					if (e.code === 'ETIMEDOUT')
+					console.log(e.code, e.message);
+					if (/ETIMEDOUT/.test(e.message))
 					{
 						const questionArray = [
 							{
@@ -334,7 +340,7 @@ function handleDownloads(listing, chunkLength)
 						prompt(questionArray, promptCallback);
 						break;
 					}
-					// else throw e;
+					else throw e;
 				}
 			}
 		})
@@ -343,6 +349,8 @@ function handleDownloads(listing, chunkLength)
 
 function unsave(listing)
 {
+	if(listing.length === 0) return Promise.reject(new Error('Listing is empty'));
+
 	const processStr = 'Unsaving downloaded submissions from saves';
 	const finishStr = 'Finished Unsaving!';
 	terminalProgress.start(processStr);
@@ -389,11 +397,19 @@ function getArgs()
 // Starts program
 function start({ fetchLimit, parallelDownloads, unsaveBool })
 {
-	fetchSaves(fetchLimit + 1).then(formatListing)
+	fetchSaves(fetchLimit).then(formatListing)
 		.then(listing =>
 		{	
 			handleDownloads(listing, parallelDownloads)
 				.then(() => unsaveBool && unsave(listing))
+				.catch(e =>
+				{
+					if(e.message === 'Listing is empty' && e.name === 'Error')
+					{
+						console.log('Your saves listing is empty!');
+					}
+					else throw e;
+				})
 				.finally(() => console.log('\nScript has finished!'));
 		})
 }
