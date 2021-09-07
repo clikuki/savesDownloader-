@@ -409,7 +409,8 @@ function start({ fetchLimit, parallelDownloads, unsaveBool })
 				.then(() => unsaveBool && unsave(listing))
 				.catch(e =>
 				{
-					if(e.message === 'Listing is empty' && e.name === 'Error')
+					const isListingEmptyErr = (e.message === 'Listing is empty' && e.name === 'Error');
+					if(isListingEmptyErr)
 					{
 						console.log('Your saves listing is empty!');
 					}
