@@ -286,13 +286,14 @@ function handleDownloads(listing, chunkLength)
 
 	const processStr = 'Downloading saves';
 	const finishStr = 'Finished Downloading!';
-	terminalProgress.start(processStr);
+	terminalProgress.start(processStr, { r: `of ${listing.length} images downloaded` });
 
 	return new Promise(resolve =>
 	{
 		const chunkyListing = subArray([...listing], chunkLength);
 		const numOfArrays = chunkyListing.length;
 		let finishedArrays = 0;
+		let finishedImgs = 0;
 
 		chunkyListing.forEach(async chunk =>
 		{
@@ -302,6 +303,7 @@ function handleDownloads(listing, chunkLength)
 				{
 					await getDownloadPromise(data)
 
+					terminalProgress.update(++finishedImgs);
 					data.downloaded = true;
 					if (+i === chunk.length - 1) finishedArrays += 1;
 					if (numOfArrays === finishedArrays)
@@ -353,8 +355,9 @@ function unsave(listing)
 
 	const processStr = 'Unsaving downloaded submissions from saves';
 	const finishStr = 'Finished Unsaving!';
-	terminalProgress.start(processStr);
+	terminalProgress.start(processStr, { r: `of ${listing.length} images unsaved` });
 
+	let finishedImgs = 0;
 	const unsavePromiseArray = Promise.all(listing.map((thing) =>
 		{
 			const isComment = (thing.type === 'comment');
@@ -375,6 +378,8 @@ function unsave(listing)
 						file.write(`${thing.url}\n`);
 						file.end();
 					}
+
+					terminalProgress.update(++finishedImgs);
 				});
 		}));
 
