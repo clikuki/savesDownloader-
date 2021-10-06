@@ -34,7 +34,7 @@ Replace the strings between the single quotes with their respective information,
 
 ## Running the program
 To run it, open command prompt and navigate to the folder with `cd "path to program files"`.
-Then enter `node js/index limit='num of saves' parallel='num of files to download at a time' unsave='true to unsave, false otherwise'`. Replace the values between the apostrophes with your values.
+Then enter `node . limit='num of saves' parallel='num of files to download at a time' unsave='true to unsave, false otherwise'`. Replace the values between the apostrophes with your values.
 
 ## Adding default parameters
 To avoid having to enter params for the program every time you run it, you can add default values.
