@@ -5,7 +5,6 @@ const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 
 const getType = require('./getType');
-const prompt = require('./prompt');
 const download = require('./download');
 const getRandFileName = require('./getRandFileName');
 const terminalProgress = require('./terminalProgress');
@@ -66,7 +65,7 @@ const argv = yargs(hideBin(process.argv))
 	.argv;
 
 const userInfo = (() =>
-{ // load dev or user credentials
+{ // load dev or user credentials and defaults
 	try
 	{
 		return require('./dev.config.js');
@@ -76,6 +75,7 @@ const userInfo = (() =>
 	}
 })();
 
+// Initialize wrapper
 const r = new Snoowrap({
 	userAgent: 'NodeJS Saves Downloader+ 0.0.1 By u/Clikuki',
 	clientId: userInfo.CLIENT_ID,
@@ -84,96 +84,80 @@ const r = new Snoowrap({
 	password: userInfo.PASSWORD,
 })
 
-// Fetch saves
-function fetchSaves(limit)
+// Fetches saves
+async function fetchSaves(limit)
 {
-	return new Promise(async (resolve) =>
+	const processStr = 'Fetching your saves from Reddit.com';
+	const finishStr = 'Finished fetching your saves!';
+	terminalProgress.start(processStr);
+	
+	try
 	{
-		const processStr = 'Fetching your saves from Reddit.com';
-		const finishStr = 'Finished fetching your saves!';
-		terminalProgress.start(processStr);
-	
-		try
-		{
-			const listing = await r.getMe().getSavedContent({ limit });
-	
-			terminalProgress.stop(finishStr);
-			resolve(listing);
-		}
-		catch (e)
-		{
-			console.log(e.code, e.message);
-			if (/ETIMEDOUT/.test(e.message))
-			{
-				const questionArray = [
-					{
-						question: 'The request took too long. Would you like to try again?',
-						key: 'confirm',
-					},
-				]
-
-				const promptCallback = async ({ confirm }) =>
-				{
-					if(confirm === 'yes')
-					{
-						const listing = await fetchSaves(limit);
-						terminalProgress.stop(finishStr);
-						resolve(listing);
-					}
-				} 
-				
-				prompt(questionArray, promptCallback);
-			}
-			else throw e;
-		}
-	})
+		const listing = await r.getMe().getSavedContent({ limit });
+		
+		terminalProgress.stop(finishStr);
+		return listing;
+	}
+	catch (e)
+	{
+		// Previous attempt at error handling doesn't work
+		// Not sure how to handle errors
+		throw e;
+	}
 }
 
-// Takes the needed data from the listing and return it
+// Takes listing and formats it to get only the needed info
 function formatListing(listing)
 {
-	return listing.map(thing =>
+	return listing.map(item =>
 	{
-		const type = getType(thing);
+		const type = getType(item);
 		const data = {
-			downloaded: false,
-			unsaved: false,
-			id: thing.id,
+			id: item.id,
 			type,
 		}
-
+		
 		switch (type)
 		{
 			case 'comment':
-				data.postUrl = thing.link_permalink;
-				data.url = data.postUrl + thing.id;
+				data.url = item.link_permalink + item.id;
 				break;
-
+		
 			case 'image':
 			case 'text':
-				data.url = thing.url;
+				data.url = item.url;
 				break;
-
+		
 			case 'video':
-				data.vidUrl = thing.secure_media.reddit_video.fallback_url
-					.replace('?source=fallback', '');
-
-				data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
+				if (item.secure_media)
+				{
+					// Remove url params from appearing on file extension
+					data.vidUrl = item.secure_media.reddit_video.fallback_url.split('?')[0];
+					data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
+				}
+				else data.type = 'removed';
 				break;
-
+		
 			case 'gallery':
-				data.urlArray = Object.values(thing.media_metadata).map(img => img.s.u);
-				break;
+				if(item.media_metadata)
+				{
+					const galleryImgObj = Object.values(item.media_metadata);
+					const images = galleryImgObj.map(img => img.s.u);
 
+					data.urlArray = images;
+				}
+				else data.type = 'removed';
+				break;
+		
 			default:
 				break;
 		}
 
 		return data;
-	});
+	})
 }
 
-// returns a diffrent promise for each type of save
+// returns a promise that resolves when save item has finished downloading
 const getDownloadPromise = (() =>
 {
 	const dest = './downloads/';
@@ -220,6 +204,7 @@ const getDownloadPromise = (() =>
 			case 'gallery':
 				return new Promise(async (resolve, reject) =>
 				{
+					// Download images from gallery one by one
 					for (const url of data.urlArray)
 					{
 						try
@@ -229,6 +214,7 @@ const getDownloadPromise = (() =>
 						}
 						catch (e)
 						{
+							// Allow error to bubble up to actual error handler
 							reject(e);
 							break;
 						}
@@ -247,11 +233,18 @@ const getDownloadPromise = (() =>
 						.then(() => download(data.vidUrl, newDest, vidName))
 						.then(() => download(data.audioUrl, newDest, audioName))
 						.then(() => fs.promises.readFile(newDest + audioName))
-						.then(file =>
+						.then(async file =>
 							{
+								// If audio file is text, then the video had no audio
 								if(isText(null, file))
 								{
-									return fs.promises.unlink(newDest + audioName);
+									// delete invalid audio file and move video out
+									await Promise.all([
+										fs.promises.unlink(newDest + audioName),
+										fs.promises.rename(newDest + vidName, dest + vidName),
+									])
+
+									return fs.promises.rmdir(newDest);
 								}
 							});
 				}
@@ -264,6 +257,7 @@ const getDownloadPromise = (() =>
 // Split array into chunks/arrays within an array
 function subArray(array, numOfSubArrays)
 {
+	// Prevent empty arrays from forming if array is shorter than numOfSubArrays
 	if(numOfSubArrays >= array.length) return array.map(item => [item]);
 
 	const newArray = Array.from({ length: numOfSubArrays }, () => []);
@@ -286,66 +280,51 @@ function handleDownloads(listing, chunkLength)
 
 	const processStr = 'Downloading saves';
 	const finishStr = 'Finished Downloading!';
-	terminalProgress.start(processStr, { r: `of ${listing.length} images downloaded` });
 
 	return new Promise(resolve =>
 	{
-		const chunkyListing = subArray([...listing], chunkLength);
+		// don't loop over saves that can be downloaded
+		const listingCopy = [...listing].filter(({ type }) => !['comment', 'text', 'removed'].includes(type));
+		const chunkyListing = subArray(listingCopy, chunkLength);
 		const numOfArrays = chunkyListing.length;
 		let finishedArrays = 0;
 		let finishedImgs = 0;
 
-		chunkyListing.forEach(async chunk =>
+		if(numOfArrays)
 		{
-			for (const [i, data] of Object.entries(chunk))
+			terminalProgress.start(processStr, { r: `of ${listing.length} saves downloaded` });
+			chunkyListing.forEach(async chunk =>
 			{
-				try
-				{
-					await getDownloadPromise(data)
-
-					terminalProgress.update(++finishedImgs);
-					data.downloaded = true;
-					if (+i === chunk.length - 1) finishedArrays += 1;
-					if (numOfArrays === finishedArrays)
+					for (const [i, data] of Object.entries(chunk))
 					{
-						terminalProgress.stop(finishStr);
-						resolve();
-					}
-				}
-				catch (e)
-				{
-					console.log(e.code, e.message);
-					if (/ETIMEDOUT/.test(e.message))
-					{
-						const questionArray = [
-							{
-								question: 'A download took to long. Would you like to try again?',
-								key: 'confirm',
-							},
-						]
-
-						const promptCallback = async ({ confirm }) =>
+						try
 						{
-							if (confirm === 'yes')
+							// Wait for download to finish then
+							// increase num of downloaded saves in display
+							await getDownloadPromise(data);
+							terminalProgress.update(++finishedImgs);
+						
+							if (+i === chunk.length - 1) finishedArrays += 1;
+							if (numOfArrays === finishedArrays)
 							{
-								const filteredLising = chunkyListing.map(subArr =>
-								{ // Remove already downloaded saves
-									return subArr.filter(thing => !thing.downloaded);
-								})
-
-								await handleDownloads(filteredLising);
 								terminalProgress.stop(finishStr);
 								resolve();
 							}
 						}
-
-						prompt(questionArray, promptCallback);
-						break;
+						catch (e)
+						{
+							// Previous attempt at error handling doesn't work
+							// Not sure how to handle errors
+							throw e;
+						}
 					}
-					else throw e;
-				}
-			}
-		})
+			})
+		}
+		else
+		{
+			console.log('Listing had no valid saves!')
+			resolve();
+		}
 	})
 }
 
@@ -355,27 +334,25 @@ function unsave(listing)
 
 	const processStr = 'Unsaving downloaded submissions from saves';
 	const finishStr = 'Finished Unsaving!';
-	terminalProgress.start(processStr, { r: `of ${listing.length} images unsaved` });
+	terminalProgress.start(processStr, { r: `of ${listing.length} saves unsaved` });
 
 	let finishedImgs = 0;
-	const unsavePromiseArray = Promise.all(listing.map((thing) =>
+	const unsavePromiseArray = Promise.all(listing.map((item) =>
 		{
-			const isComment = (thing.type === 'comment');
-			const isText = (thing.type === 'text');
+			const isComment = (item.type === 'comment');
+			const isText = (item.type === 'text');
 
-			// Change method to getComment if thing is a comment
+			// Change method to getComment if save item is a comment
 			const rMethod = (isComment) ? 'getComment' : 'getSubmission';
 
-			return r[ rMethod ](thing.id)
+			return r[ rMethod ](item.id)
 				.unsave()
 				.then(() =>
 				{
-					thing.unsaved = true;
-
 					if(isComment || isText)
 					{
-						const file = fs.createWriteStream(`./urls/${thing.type}s.txt`, { flags: 'a' });
-						file.write(`${thing.url}\n`);
+						const file = fs.createWriteStream(`./urls/${item.type}s.txt`, { flags: 'a' });
+						file.write(`${item.url}\n`);
 						file.end();
 					}
 
@@ -383,13 +360,13 @@ function unsave(listing)
 				});
 		}));
 
-	return unsavePromiseArray
-		.then(() => terminalProgress.stop(finishStr));
+	return unsavePromiseArray.then(() => terminalProgress.stop(finishStr));
 }
 
 // Returns the required arguments for the program
 function getArgs()
 {
+	// If no value is present in userinfo, then use CLI args or defaults
 	const argsObj = {
 		fetchLimit: userInfo.FETCHLIMIT || argv.limit,
 		parallelDownloads: userInfo.PARALLELDOWNLOADS || argv.parallel,
@@ -399,24 +376,36 @@ function getArgs()
 	return argsObj;
 }
 
+// For development purposes
+function writeListingToFile(path, content)
+{
+	content = JSON.stringify(content, undefined, 4);
+	return fs.promises.writeFile(path, content);
+}
+
 // Starts program
 function start({ fetchLimit, parallelDownloads, unsaveBool })
 {
-	fetchSaves(fetchLimit).then(formatListing)
-		.then(listing =>
+	// .then(listing => writeListingToFile('jsonExamples/deletedGallery.json', listing))
+	fetchSaves(fetchLimit)
+		.then(formatListing)
+		.then(async listing =>
 		{	
-			handleDownloads(listing, parallelDownloads)
-				.then(() => unsaveBool && unsave(listing))
-				.catch(e =>
+			try
+			{
+				await handleDownloads(listing, parallelDownloads);
+				if(unsaveBool) await unsave(listing);	
+			} catch (e)
+			{
+				const isListingEmptyErr = (e.message === 'Listing is empty' && e.name === 'Error');
+				if(isListingEmptyErr)
 				{
-					const isListingEmptyErr = (e.message === 'Listing is empty' && e.name === 'Error');
-					if(isListingEmptyErr)
-					{
-						console.log('Your saves listing is empty!');
-					}
-					else throw e;
-				})
-				.finally(() => console.log('\nScript has finished!'));
+					console.log('Your saves listing is empty!');
+				}
+				else throw e;
+			}
+
+			console.log('\nScript has finished!');
 		})
 }
 

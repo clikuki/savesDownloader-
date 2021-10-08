@@ -1,11 +1,8 @@
 {
   "name": "saves-downloader-plus",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A better saves downloader for reddit in Node.js",
   "main": "js/index.js",
-  "scripts": {
-    "test": "jest"
-  },
   "author": "Clikuki",
   "license": "MIT",
   "dependencies": {
