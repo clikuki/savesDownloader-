@@ -85,7 +85,7 @@ const r = new Snoowrap({
 })
 
 // Fetches saves
-async function fetchSaves(limit)
+const fetchSaves = async (limit) =>
 {
 	const processStr = 'Fetching your saves from Reddit.com';
 	const finishStr = 'Finished fetching your saves!';
@@ -107,55 +107,51 @@ async function fetchSaves(limit)
 }
 
 // Takes listing and formats it to get only the needed info
-function formatListing(listing)
+const formatListing = (listing) => listing.map(item =>
 {
-	return listing.map(item =>
+	const type = getType(item);
+	const data = {
+		id: item.id,
+		type,
+	}
+	
+	switch (type)
 	{
-		const type = getType(item);
-		const data = {
-			id: item.id,
-			type,
-		}
-		
-		switch (type)
-		{
-			case 'comment':
-				data.url = item.link_permalink + item.id;
-				break;
-		
-			case 'image':
-			case 'text':
-				data.url = item.url;
-				break;
-		
-			case 'video':
-				if (item.secure_media)
-				{
-					// Remove url params from appearing on file extension
-					data.vidUrl = item.secure_media.reddit_video.fallback_url.split('?')[0];
-					data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
-				}
-				else data.type = 'removed';
-				break;
-		
-			case 'gallery':
-				if(item.media_metadata)
-				{
-					const galleryImgObj = Object.values(item.media_metadata);
-					const images = galleryImgObj.map(img => img.s.u);
+		case 'comment':
+			data.url = item.link_permalink + item.id;
+			break;
+	
+		case 'image':
+		case 'text':
+			data.url = item.url;
+			break;
+	
+		case 'video':
+			if (item.secure_media)
+			{
+				// Remove url params from appearing on file extension
+				data.vidUrl = item.secure_media.reddit_video.fallback_url.split('?')[0];
+				data.audioUrl = data.vidUrl.replace(/(?<=DASH_)[0-9]*/, 'audio');
+			}
+			else data.type = 'removed';
+			break;
+	
+		case 'gallery':
+			if(item.media_metadata)
+			{
+				const galleryImgObj = Object.values(item.media_metadata);
+				const images = galleryImgObj.map(img => img.s.u);
+				data.urlArray = images;
+			}
+			else data.type = 'removed';
+			break;
+	
+		default:
+			break;
+	}
 
-					data.urlArray = images;
-				}
-				else data.type = 'removed';
-				break;
-		
-			default:
-				break;
-		}
-
-		return data;
-	})
-}
+	return data;
+})
 
 // returns a promise that resolves when save item has finished downloading
 const getDownloadPromise = (() =>
@@ -255,7 +251,7 @@ const getDownloadPromise = (() =>
 })()
 
 // Split array into chunks/arrays within an array
-function subArray(array, numOfSubArrays)
+const subArray = (array, numOfSubArrays) =>
 {
 	// Prevent empty arrays from forming if array is shorter than numOfSubArrays
 	if(numOfSubArrays >= array.length) return array.map(item => [item]);
@@ -274,61 +270,67 @@ function subArray(array, numOfSubArrays)
 }
 
 // Runs parralel downloads on chunked listing
-function handleDownloads(listing, chunkLength)
+const handleDownloads = (() =>
 {
-	if(listing.length === 0) return Promise.reject(new Error('Listing is empty'));
-
 	const processStr = 'Downloading saves';
 	const finishStr = 'Finished Downloading!';
 
-	return new Promise(resolve =>
-	{
-		// don't loop over saves that can be downloaded
-		const listingCopy = [...listing].filter(({ type }) => !['comment', 'text', 'removed'].includes(type));
-		const chunkyListing = subArray(listingCopy, chunkLength);
-		const numOfArrays = chunkyListing.length;
-		let finishedArrays = 0;
-		let finishedImgs = 0;
+	const invalidTypes = ['comment', 'text', 'removed'];
+	const removeInvalidSaves = (listing) => [...listing].filter(({ type }) => !invalidTypes.includes(type));
 
-		if(numOfArrays)
+	return (listing, chunkLength) =>
+	{
+		if(listing.length === 0) return Promise.reject(new Error('Listing is empty'));
+	
+		return new Promise(resolve =>
 		{
-			terminalProgress.start(processStr, { r: `of ${listing.length} saves downloaded` });
-			chunkyListing.forEach(async chunk =>
+			// don't loop over saves that can be downloaded
+			const listingCopy = removeInvalidSaves(listing);
+			const chunkyListing = subArray(listingCopy, chunkLength);
+			const numOfArrays = chunkyListing.length;
+			let finishedArrays = 0;
+			let finishedImgs = 0;
+	
+			if(numOfArrays)
 			{
-					for (const [i, data] of Object.entries(chunk))
-					{
-						try
+				terminalProgress.start(processStr, { r: `of ${listing.length} saves downloaded` });
+				chunkyListing.forEach(async chunk =>
+				{
+						for (const [i, data] of Object.entries(chunk))
 						{
-							// Wait for download to finish then
-							// increase num of downloaded saves in display
-							await getDownloadPromise(data);
-							terminalProgress.update(++finishedImgs);
-						
-							if (+i === chunk.length - 1) finishedArrays += 1;
-							if (numOfArrays === finishedArrays)
+							try
 							{
-								terminalProgress.stop(finishStr);
-								resolve();
+								// Wait for download to finish then
+								// increase num of downloaded saves in display
+								await getDownloadPromise(data);
+								terminalProgress.update(++finishedImgs);
+							
+								if (+i === chunk.length - 1) finishedArrays += 1;
+								if (numOfArrays === finishedArrays)
+								{
+									terminalProgress.stop(finishStr);
+									resolve();
+								}
+							}
+							catch (e)
+							{
+								// Previous attempt at error handling doesn't work
+								// Not sure how to handle errors
+								throw e;
 							}
 						}
-						catch (e)
-						{
-							// Previous attempt at error handling doesn't work
-							// Not sure how to handle errors
-							throw e;
-						}
-					}
-			})
-		}
-		else
-		{
-			console.log('Listing had no valid saves!')
-			resolve();
-		}
-	})
-}
+				})
+			}
+			else
+			{
+				console.log('Listing had no valid saves!')
+				resolve();
+			}
+		})
+	}
+})()
 
-function unsave(listing)
+const unsave = (listing) =>
 {
 	if(listing.length === 0) return Promise.reject(new Error('Listing is empty'));
 
@@ -364,7 +366,7 @@ function unsave(listing)
 }
 
 // Returns the required arguments for the program
-function getArgs()
+const getArgs = () =>
 {
 	// If no value is present in userinfo, then use CLI args or defaults
 	const argsObj = {
@@ -377,14 +379,14 @@ function getArgs()
 }
 
 // For development purposes
-function writeListingToFile(path, content)
+const writeListingToFile = (path, content) =>
 {
 	content = JSON.stringify(content, undefined, 4);
 	return fs.promises.writeFile(path, content);
 }
 
 // Starts program
-function start({ fetchLimit, parallelDownloads, unsaveBool })
+const start = ({ fetchLimit, parallelDownloads, unsaveBool }) =>
 {
 	// .then(listing => writeListingToFile('jsonExamples/deletedGallery.json', listing))
 	fetchSaves(fetchLimit)
