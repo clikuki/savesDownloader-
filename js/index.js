@@ -139,7 +139,12 @@ const formatListing = (listing) => listing.map(item =>
 		case 'gallery':
 			if(item.media_metadata)
 			{
-				const galleryImgObj = Object.values(item.media_metadata);
+				// Some images in galleries have some imgs missing,
+				// those imgs have a status prop of 'failed' while
+				// those that are valid have it set to 'valid'
+				const galleryImgObj = Object.values(item.media_metadata)
+					.filter(({ status }) => status === 'valid');
+
 				const images = galleryImgObj.map(img => img.s.u);
 				data.urlArray = images;
 			}
@@ -388,7 +393,7 @@ const writeListingToFile = (path, content) =>
 // Starts program
 const start = ({ fetchLimit, parallelDownloads, unsaveBool }) =>
 {
-	// .then(listing => writeListingToFile('jsonExamples/deletedGallery.json', listing))
+	// .then(listing => writeListingToFile('debugging.json', listing))
 	fetchSaves(fetchLimit)
 		.then(formatListing)
 		.then(async listing =>
